@@ -1,0 +1,185 @@
+{
+  "parameters": {
+    "patrol_speed": 0.5,
+    "approach_speed": 0.3,
+    "observe_speed": 0.2,
+    "retreat_speed": 0.8,
+    "far_threshold": 5.0,
+    "medium_threshold": 2.0,
+    "close_threshold": 1.5,
+    "very_close_threshold": 0.8,
+    "patrol_duration_min": 10.0,
+    "patrol_duration_max": 30.0,
+    "observe_duration_min": 5.0,
+    "observe_duration_max": 15.0,
+    "approach_timeout": 20.0,
+    "retreat_timeout": 10.0,
+    "min_worker_distance": 0.5,
+    "max_approach_attempts": 3,
+    "emergency_stop_distance": 0.3,
+    "patrol_randomization": 0.3,
+    "surveillance_intensity": 0.9,
+    "curiosity_weight": 0.8,
+    "caution_weight": 0.4
+  },
+  "behavior_history": [
+    {
+      "timestamp": 1750444730.566574,
+      "from_state": "idle",
+      "to_state": "patrol",
+      "duration": 4.124641418457031e-05,
+      "reason": "Workers detected",
+      "workers_detected": 1,
+      "target_worker": null
+    },
+    {
+      "timestamp": 1750444730.771818,
+      "from_state": "patrol",
+      "to_state": "approach",
+      "duration": 0.20524311065673828,
+      "reason": "Worker in range",
+      "workers_detected": 1,
+      "target_worker": 1
+    },
+    {
+      "timestamp": 1750444730.979538,
+      "from_state": "approach",
+      "to_state": "retreat",
+      "duration": 0.20770978927612305,
+      "reason": "Too close to worker",
+      "workers_detected": 1,
+      "target_worker": 1
+    },
+    {
+      "timestamp": 1750444731.08082,
+      "from_state": "retreat",
+      "to_state": "patrol",
+      "duration": 0.1012730598449707,
+      "reason": "Safe distance achieved",
+      "workers_detected": 1,
+      "target_worker": 1
+    }
+  ],
+  "behavior_log": [
+    {
+      "timestamp": 1750444730.566603,
+      "current_state": "patrol",
+      "state_duration": 2.288818359375e-05,
+      "target_worker_id": null,
+      "workers_detected": 1,
+      "closest_worker_distance": 3.605551275463989,
+      "current_speed": 1.0,
+      "emergency_stop_active": false,
+      "approach_attempts": 0,
+      "target_position": [
+        5.0,
+        10.0
+      ]
+    },
+    {
+      "timestamp": 1750444730.667356,
+      "current_state": "patrol",
+      "state_duration": 0.10078310966491699,
+      "target_worker_id": null,
+      "workers_detected": 1,
+      "closest_worker_distance": 2.5,
+      "current_speed": 1.0,
+      "emergency_stop_active": false,
+      "approach_attempts": 0,
+      "target_position": [
+        5.0,
+        10.0
+      ]
+    },
+    {
+      "timestamp": 1750444730.77184,
+      "current_state": "approach",
+      "state_duration": 7.867813110351562e-06,
+      "target_worker_id": 1,
+      "workers_detected": 1,
+      "closest_worker_distance": 1.8027756377319946,
+      "current_speed": 0.5,
+      "emergency_stop_active": false,
+      "approach_attempts": 0,
+      "target_position": [
+        1.5,
+        1.0
+      ]
+    },
+    {
+      "timestamp": 1750444730.8755322,
+      "current_state": "approach",
+      "state_duration": 0.10370278358459473,
+      "target_worker_id": 1,
+      "workers_detected": 1,
+      "closest_worker_distance": 1.2806248474865698,
+      "current_speed": 0.5,
+      "emergency_stop_active": false,
+      "approach_attempts": 0,
+      "target_position": [
+        1.0,
+        0.8
+      ]
+    },
+    {
+      "timestamp": 1750444730.979557,
+      "current_state": "retreat",
+      "state_duration": 8.106231689453125e-06,
+      "target_worker_id": 1,
+      "workers_detected": 1,
+      "closest_worker_distance": 0.5,
+      "current_speed": 0.8,
+      "emergency_stop_active": false,
+      "approach_attempts": 0,
+      "target_position": [
+        -2.0,
+        -1.4999999999999998
+      ]
+    },
+    {
+      "timestamp": 1750444731.080838,
+      "current_state": "patrol",
+      "state_duration": 5.9604644775390625e-06,
+      "target_worker_id": 1,
+      "workers_detected": 1,
+      "closest_worker_distance": 1.9209372712298547,
+      "current_speed": 1.0,
+      "emergency_stop_active": false,
+      "approach_attempts": 0,
+      "target_position": [
+        5.0,
+        10.0
+      ]
+    },
+    {
+      "timestamp": 1750444731.182583,
+      "current_state": "patrol",
+      "state_duration": 0.10175681114196777,
+      "target_worker_id": 1,
+      "workers_detected": 1,
+      "closest_worker_distance": 3.905124837953327,
+      "current_speed": 1.0,
+      "emergency_stop_active": false,
+      "approach_attempts": 0,
+      "target_position": [
+        5.0,
+        10.0
+      ]
+    },
+    {
+      "timestamp": 1750444731.285759,
+      "current_state": "patrol",
+      "state_duration": 0.20493388175964355,
+      "target_worker_id": 1,
+      "workers_detected": 1,
+      "closest_worker_distance": 3.905124837953327,
+      "current_speed": 1.0,
+      "emergency_stop_active": false,
+      "approach_attempts": 0,
+      "target_position": [
+        5.0,
+        10.0
+      ]
+    }
+  ]
+}

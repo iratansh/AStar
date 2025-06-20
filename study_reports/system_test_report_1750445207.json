@@ -1,0 +1,19 @@
+{
+  "timestamp": 1750445207,
+  "test_results": {
+    "navigation": false,
+    "behavioral": true,
+    "data_collection": true,
+    "sensor_processing": true,
+    "integration": true
+  },
+  "system_info": {
+    "python_version": "3.8+",
+    "required_packages": [
+      "numpy",
+      "pandas",
+      "neurokit2 (optional)"
+    ],
+    "test_duration": 0.9535291194915771
+  }
+}

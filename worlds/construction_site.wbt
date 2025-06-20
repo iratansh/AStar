@@ -1,0 +1,935 @@
+#VRML_SIM R2023b utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/factory/containers/protos/WoodenBox.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/factory/pipes/protos/PipeSection.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/factory/valves/protos/LeverValve.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/buildings/protos/Windmill.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/geometries/protos/Cylinder.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/geometries/protos/Box.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/appearances/protos/CorrugatedMetal.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/appearances/protos/BrushedAluminium.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/appearances/protos/CementTiles.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/appearances/protos/RustyMetal.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/appearances/protos/ThreadMetalPlate.proto"
+
+WorldInfo {
+  title "Construction Site Behavioral Study"
+  info [
+    "Unitree Go2 Robot Behavioral Study Environment"
+    "Features construction site with human workers"
+    "Includes scaffolding, equipment, and materials"
+    "Designed for human-robot interaction research"
+  ]
+  basicTimeStep 16
+  contactProperties [
+    ContactProperties {
+      material1 "Go2Material"
+      material2 "floor"
+      coulombFriction [
+        0.8
+      ]
+      bounce 0.1
+      softCFM 0.001
+    }
+  ]
+  coordinateSystem "NUE"
+}
+
+Viewpoint {
+  orientation -0.2773500811290741 0.27735008112907416 0.9205336267333683 1.6390254071775858
+  position 7.164480622821983 -7.164480622821984 8.52735425135612
+  follow "Go2"
+  followSmoothness 0.5
+}
+
+TexturedBackground {
+  texture "noon_stormy_empty"
+}
+
+TexturedBackgroundLight {
+  texture "noon_stormy_empty"
+  luminosity 0.8
+}
+
+# Construction Site Floor
+RectangleArena {
+  translation 0 0 0
+  name "construction_floor"
+  floorSize 40 40
+  floorTileSize 2 2
+  floorAppearance CementTiles {
+    textureTransform TextureTransform {
+      scale 4 4
+    }
+  }
+  wallHeight 0.1
+  wallAppearance CorrugatedMetal {
+  }
+}
+
+# Unitree Go2 Robot
+Robot {
+  translation 0 0 0.3
+  rotation 0 0 1 0
+  name "Go2"
+  children [
+    # Robot Body
+    Transform {
+      translation 0 0 0
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.2 0.2 0.2
+            metalness 0.8
+            roughness 0.2
+          }
+          geometry Box {
+            size 0.6 0.3 0.2
+          }
+        }
+      ]
+    }
+    
+    # Camera and Sensors Group
+    Transform {
+      translation 0.25 0 0.05
+      children [
+        # RealSense D435i Camera
+        Camera {
+          translation 0 0 0.05
+          name "realsense_rgb"
+          model "RealSense D435i"
+          fieldOfView 1.047
+          width 640
+          height 480
+          far 10
+        }
+        
+        # Depth Camera (simulating RealSense depth)
+        RangeFinder {
+          translation 0 0.02 0.05
+          name "realsense_depth"
+          fieldOfView 1.047
+          width 640
+          height 480
+          maxRange 10
+          minRange 0.1
+        }
+        
+        # GPS for position tracking
+        GPS {
+          translation 0 0 0.1
+          name "gps"
+        }
+        
+        # Compass for orientation
+        Compass {
+          translation 0 0 0.1
+          name "compass"
+        }
+        
+        # IMU for inertial measurements
+        InertialUnit {
+          translation 0 0 0.1
+          name "imu"
+        }
+        
+        # Lidar for additional sensing
+        Lidar {
+          translation 0 0 0.1
+          name "lidar"
+          fieldOfView 6.28
+          verticalFieldOfView 0.3
+          numberOfLayers 16
+          maxRange 30
+          minRange 0.1
+        }
+      ]
+    }
+    
+    # Legs (simplified representation)
+    Transform {
+      translation 0.2 0.15 -0.15
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.3 0.3 0.3
+          }
+          geometry Cylinder {
+            height 0.3
+            radius 0.02
+          }
+        }
+      ]
+    }
+    Transform {
+      translation 0.2 -0.15 -0.15
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.3 0.3 0.3
+          }
+          geometry Cylinder {
+            height 0.3
+            radius 0.02
+          }
+        }
+      ]
+    }
+    Transform {
+      translation -0.2 0.15 -0.15
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.3 0.3 0.3
+          }
+          geometry Cylinder {
+            height 0.3
+            radius 0.02
+          }
+        }
+      ]
+    }
+    Transform {
+      translation -0.2 -0.15 -0.15
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.3 0.3 0.3
+          }
+          geometry Cylinder {
+            height 0.3
+            radius 0.02
+          }
+        }
+      ]
+    }
+  ]
+  boundingObject Transform {
+    translation 0 0 0
+    children [
+      Box {
+        size 0.6 0.3 0.2
+      }
+    ]
+  }
+  physics Physics {
+    density -1
+    mass 15
+    centerOfMass [
+      0 0 0
+    ]
+  }
+  controller "robot_controller"
+  controllerArgs [
+    ""
+  ]
+}
+
+# Human Worker 1
+Robot {
+  translation -5 -3 0
+  rotation 0 0 1 0
+  name "Worker1"
+  children [
+    # Human body representation
+    Transform {
+      translation 0 0 0.9
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.8 0.6 0.4
+            roughness 0.8
+          }
+          geometry Cylinder {
+            height 1.8
+            radius 0.25
+          }
+        }
+      ]
+    }
+    # Head
+    Transform {
+      translation 0 0 1.9
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.9 0.7 0.5
+          }
+          geometry Sphere {
+            radius 0.12
+          }
+        }
+      ]
+    }
+    # Safety helmet
+    Transform {
+      translation 0 0 2.0
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 1 0.8 0
+            metalness 0.3
+          }
+          geometry Sphere {
+            radius 0.14
+          }
+        }
+      ]
+    }
+    # GPS for tracking
+    GPS {
+      name "worker1_gps"
+    }
+  ]
+  boundingObject Transform {
+    translation 0 0 0.9
+    children [
+      Cylinder {
+        height 1.8
+        radius 0.25
+      }
+    ]
+  }
+  physics Physics {
+    density -1
+    mass 70
+  }
+  controller "human_controller"
+  controllerArgs [
+    "worker1"
+  ]
+}
+
+# Human Worker 2
+Robot {
+  translation 8 5 0
+  rotation 0 0 1 1.57
+  name "Worker2"
+  children [
+    # Human body representation
+    Transform {
+      translation 0 0 0.9
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.7 0.5 0.3
+            roughness 0.8
+          }
+          geometry Cylinder {
+            height 1.8
+            radius 0.25
+          }
+        }
+      ]
+    }
+    # Head
+    Transform {
+      translation 0 0 1.9
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.8 0.6 0.4
+          }
+          geometry Sphere {
+            radius 0.12
+          }
+        }
+      ]
+    }
+    # Safety helmet
+    Transform {
+      translation 0 0 2.0
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0 0.8 0
+            metalness 0.3
+          }
+          geometry Sphere {
+            radius 0.14
+          }
+        }
+      ]
+    }
+    # GPS for tracking
+    GPS {
+      name "worker2_gps"
+    }
+  ]
+  boundingObject Transform {
+    translation 0 0 0.9
+    children [
+      Cylinder {
+        height 1.8
+        radius 0.25
+      }
+    ]
+  }
+  physics Physics {
+    density -1
+    mass 70
+  }
+  controller "human_controller"
+  controllerArgs [
+    "worker2"
+  ]
+}
+
+# Human Worker 3
+Robot {
+  translation 3 -8 0
+  rotation 0 0 1 3.14
+  name "Worker3"
+  children [
+    # Human body representation
+    Transform {
+      translation 0 0 0.9
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.6 0.4 0.2
+            roughness 0.8
+          }
+          geometry Cylinder {
+            height 1.8
+            radius 0.25
+          }
+        }
+      ]
+    }
+    # Head
+    Transform {
+      translation 0 0 1.9
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.7 0.5 0.3
+          }
+          geometry Sphere {
+            radius 0.12
+          }
+        }
+      ]
+    }
+    # Safety helmet
+    Transform {
+      translation 0 0 2.0
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.8 0.2 0
+            metalness 0.3
+          }
+          geometry Sphere {
+            radius 0.14
+          }
+        }
+      ]
+    }
+    # GPS for tracking
+    GPS {
+      name "worker3_gps"
+    }
+  ]
+  boundingObject Transform {
+    translation 0 0 0.9
+    children [
+      Cylinder {
+        height 1.8
+        radius 0.25
+      }
+    ]
+  }
+  physics Physics {
+    density -1
+    mass 70
+  }
+  controller "human_controller"
+  controllerArgs [
+    "worker3"
+  ]
+}
+
+# Scaffolding Structure 1
+Transform {
+  translation -10 5 0
+  children [
+    # Vertical poles
+    Transform {
+      translation 0 0 2.5
+      children [
+        Shape {
+          appearance BrushedAluminium {
+          }
+          geometry Cylinder {
+            height 5
+            radius 0.05
+          }
+        }
+      ]
+    }
+    Transform {
+      translation 2 0 2.5
+      children [
+        Shape {
+          appearance BrushedAluminium {
+          }
+          geometry Cylinder {
+            height 5
+            radius 0.05
+          }
+        }
+      ]
+    }
+    Transform {
+      translation 0 2 2.5
+      children [
+        Shape {
+          appearance BrushedAluminium {
+          }
+          geometry Cylinder {
+            height 5
+            radius 0.05
+          }
+        }
+      ]
+    }
+    Transform {
+      translation 2 2 2.5
+      children [
+        Shape {
+          appearance BrushedAluminium {
+          }
+          geometry Cylinder {
+            height 5
+            radius 0.05
+          }
+        }
+      ]
+    }
+    # Horizontal crossbeams
+    Transform {
+      translation 1 0 1.5
+      rotation 0 0 1 1.57
+      children [
+        Shape {
+          appearance BrushedAluminium {
+          }
+          geometry Cylinder {
+            height 2
+            radius 0.03
+          }
+        }
+      ]
+    }
+    Transform {
+      translation 1 2 1.5
+      rotation 0 0 1 1.57
+      children [
+        Shape {
+          appearance BrushedAluminium {
+          }
+          geometry Cylinder {
+            height 2
+            radius 0.03
+          }
+        }
+      ]
+    }
+    Transform {
+      translation 0 1 1.5
+      rotation 1 0 0 1.57
+      children [
+        Shape {
+          appearance BrushedAluminium {
+          }
+          geometry Cylinder {
+            height 2
+            radius 0.03
+          }
+        }
+      ]
+    }
+    Transform {
+      translation 2 1 1.5
+      rotation 1 0 0 1.57
+      children [
+        Shape {
+          appearance BrushedAluminium {
+          }
+          geometry Cylinder {
+            height 2
+            radius 0.03
+          }
+        }
+      ]
+    }
+    # Platform
+    Transform {
+      translation 1 1 3
+      children [
+        Shape {
+          appearance ThreadMetalPlate {
+          }
+          geometry Box {
+            size 2.2 2.2 0.05
+          }
+        }
+      ]
+    }
+  ]
+}
+
+# Construction Equipment - Excavator (simplified)
+Transform {
+  translation 12 -8 0
+  rotation 0 0 1 0.5
+  children [
+    # Main body
+    Transform {
+      translation 0 0 1.5
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 1 0.8 0
+            metalness 0.7
+          }
+          geometry Box {
+            size 3 2 2
+          }
+        }
+      ]
+    }
+    # Arm
+    Transform {
+      translation 1.8 0 2
+      rotation 0 0 1 0.3
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 1 0.8 0
+            metalness 0.7
+          }
+          geometry Box {
+            size 2 0.3 0.5
+          }
+        }
+      ]
+    }
+    # Tracks
+    Transform {
+      translation 0 1.2 0.3
+      children [
+        Shape {
+          appearance RustyMetal {
+          }
+          geometry Box {
+            size 4 0.5 0.6
+          }
+        }
+      ]
+    }
+    Transform {
+      translation 0 -1.2 0.3
+      children [
+        Shape {
+          appearance RustyMetal {
+          }
+          geometry Box {
+            size 4 0.5 0.6
+          }
+        }
+      ]
+    }
+  ]
+}
+
+# Material Storage Area
+Transform {
+  translation -15 -10 0
+  children [
+    # Steel beams
+    Transform {
+      translation 0 0 0.15
+      children [
+        Shape {
+          appearance BrushedAluminium {
+          }
+          geometry Box {
+            size 6 0.2 0.3
+          }
+        }
+      ]
+    }
+    Transform {
+      translation 0 0.3 0.15
+      children [
+        Shape {
+          appearance BrushedAluminium {
+          }
+          geometry Box {
+            size 6 0.2 0.3
+          }
+        }
+      ]
+    }
+    Transform {
+      translation 0 0.6 0.15
+      children [
+        Shape {
+          appearance BrushedAluminium {
+          }
+          geometry Box {
+            size 6 0.2 0.3
+          }
+        }
+      ]
+    }
+  ]
+}
+
+# Concrete barriers
+Transform {
+  translation 15 0 0
+  children [
+    Transform {
+      translation 0 0 0.4
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.7 0.7 0.7
+            roughness 0.9
+          }
+          geometry Box {
+            size 0.5 8 0.8
+          }
+        }
+      ]
+    }
+  ]
+}
+
+Transform {
+  translation 0 15 0
+  children [
+    Transform {
+      translation 0 0 0.4
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.7 0.7 0.7
+            roughness 0.9
+          }
+          geometry Box {
+            size 8 0.5 0.8
+          }
+        }
+      ]
+    }
+  ]
+}
+
+# Construction containers
+WoodenBox {
+  translation -8 -15 0
+  size 2 2 2
+}
+
+WoodenBox {
+  translation -5 -15 0
+  size 2 2 2
+}
+
+WoodenBox {
+  translation -2 -15 0
+  size 2 2 2
+}
+
+# Pipe sections (construction materials)
+PipeSection {
+  translation 10 8 0
+  height 3
+  radius 0.3
+  thickness 0.05
+}
+
+PipeSection {
+  translation 10.8 8 0
+  height 3
+  radius 0.3
+  thickness 0.05
+}
+
+PipeSection {
+  translation 11.6 8 0
+  height 3
+  radius 0.3
+  thickness 0.05
+}
+
+# Construction crane (simplified)
+Transform {
+  translation -18 12 0
+  children [
+    # Tower
+    Transform {
+      translation 0 0 8
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 1 0.8 0
+            metalness 0.8
+          }
+          geometry Cylinder {
+            height 16
+            radius 0.3
+          }
+        }
+      ]
+    }
+    # Jib
+    Transform {
+      translation 5 0 15
+      rotation 0 0 1 0
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 1 0.8 0
+            metalness 0.8
+          }
+          geometry Box {
+            size 10 0.2 0.5
+          }
+        }
+      ]
+    }
+    # Counter jib
+    Transform {
+      translation -3 0 15
+      rotation 0 0 1 0
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 1 0.8 0
+            metalness 0.8
+          }
+          geometry Box {
+            size 6 0.2 0.5
+          }
+        }
+      ]
+    }
+  ]
+}
+
+# Safety cones
+Transform {
+  translation 5 3 0
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.3 0
+      }
+      geometry Cylinder {
+        height 0.7
+        radius 0.2
+        bottom FALSE
+        top FALSE
+      }
+    }
+  ]
+}
+
+Transform {
+  translation -3 8 0
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.3 0
+      }
+      geometry Cylinder {
+        height 0.7
+        radius 0.2
+        bottom FALSE
+        top FALSE
+      }
+    }
+  ]
+}
+
+Transform {
+  translation 7 -5 0
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.3 0
+      }
+      geometry Cylinder {
+        height 0.7
+        radius 0.2
+        bottom FALSE
+        top FALSE
+      }
+    }
+  ]
+}
+
+# Additional lighting for realistic construction environment
+SpotLight {
+  attenuation 0 0 1
+  beamWidth 0.8
+  cutOffAngle 1.2
+  direction 0.3 0.3 -1
+  intensity 3
+  location -10 5 6
+  on TRUE
+  radius 100
+}
+
+SpotLight {
+  attenuation 0 0 1
+  beamWidth 0.8
+  cutOffAngle 1.2
+  direction -0.3 -0.3 -1
+  intensity 3
+  location 10 -5 6
+  on TRUE
+  radius 100
+}
+
+# Tool shed
+Transform {
+  translation 18 12 0
+  children [
+    Transform {
+      translation 0 0 1.5
+      children [
+        Shape {
+          appearance CorrugatedMetal {
+          }
+          geometry Box {
+            size 4 3 3
+          }
+        }
+      ]
+    }
+    # Door
+    Transform {
+      translation -2 0 1
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.4 0.2 0.1
+          }
+          geometry Box {
+            size 0.05 1 2
+          }
+        }
+      ]
+    }
+  ]
+} 

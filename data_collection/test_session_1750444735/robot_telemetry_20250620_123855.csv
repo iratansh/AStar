@@ -1,0 +1,5 @@
+timestamp,sync_timestamp,pos_x,pos_y,pos_z,ori_roll,ori_pitch,ori_yaw,vel_x,vel_y,vel_z,behavioral_state,target_worker_id,movement_speed,emergency_status,num_workers_detected
+1750444735.617782,1750444735.617782,0,0,0.3,0,0,0,0,0,0,patrol,,1.0,False,1
+1750444736.1209412,1750444736.1209412,1,1,0.3,0,0,0,0,0,0,approach,1,0.5,False,1
+1750444736.626084,1750444736.626084,2,1.5,0.3,0,0,0,0,0,0,observe,1,0.1,False,1
+1750444737.131202,1750444737.131202,1,1,0.3,0,0,0,0,0,0,retreat,,0.8,False,1

@@ -1,0 +1,20 @@
+{
+  "session_id": "test_session_1750444735",
+  "participant_id": "test_participant",
+  "start_time": 1750444735.6143832,
+  "end_time": 1750444738.656472,
+  "duration": 3.042088747024536,
+  "sync_history": [
+    {
+      "timestamp": 1750444735.614624,
+      "system": "eeg",
+      "system_time": 1750444735.614623,
+      "reference_time": 1750444735.614618,
+      "offset": -5.0067901611328125e-06
+    }
+  ],
+  "metadata": {
+    "total_interactions": 1,
+    "eeg_connected": true
+  }
+}

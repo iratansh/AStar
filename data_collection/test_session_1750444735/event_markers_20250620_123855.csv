@@ -1,0 +1,7 @@
+timestamp,sync_timestamp,event_type,robot_state,participant_id,event_data
+1750444735.6177359,1750444735.6177359,session_start,idle,test_participant,"{""session_id"": ""test_session_1750444735"", ""participant_id"": ""test_participant""}"
+1750444735.6178088,1750444735.6178088,state_change_patrol,patrol,test_participant,{}
+1750444736.1209788,1750444736.1209788,state_change_approach,approach,test_participant,{}
+1750444736.1209989,1750444736.1209989,interaction_start,approach,test_participant,"{""worker_id"": 1, ""initial_distance"": 1.7}"
+1750444736.626129,1750444736.626129,state_change_observe,observe,test_participant,{}
+1750444737.131239,1750444737.131239,state_change_retreat,retreat,test_participant,{}
