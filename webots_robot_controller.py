@@ -1,442 +1,480 @@
 #!/usr/bin/env python3
+
 """
-Webots Robot Controller for Unitree Go2 Behavioral Study
-Integrates with the complete behavioral study system
+Enhanced Webots Go2 Robot Controller
+
+This controller integrates with the official Webots Go2 proto and provides
+comprehensive functionality including sensor data collection, navigation,
+behavioral control, and human-robot interaction in the construction site.
 """
 
+from controller import Robot, Camera, RangeFinder, Lidar, GPS, Compass, InertialUnit
 import sys
 import os
 import math
+import json
+import time
 import numpy as np
-from controller import Robot, Camera, RangeFinder, GPS, Compass, InertialUnit, Lidar
 
-# Add the current directory to path to import our modules
+# Add project modules to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 try:
-    from behavioral_control import BehaviorController, BehaviorParameters
-    from data_collection import DataCollectionSystem
-    from astar_pathfinding import AStarPlanner
-    from ConvertTo2_5D import EnvironmentMapper, GridMapConfig, SensorData
+    from astar_pathfinding import AStarPathfinder
+    from ConvertTo2_5D import EnvironmentMapper
+    from behavioral_control import BehavioralController
+    from data_collection import DataCollector
+    from sensor_processing import SensorProcessor
 except ImportError as e:
-    print(f"Warning: Could not import behavioral study modules: {e}")
-    print("Running in basic navigation mode only")
+    print(f"Warning: Could not import some modules: {e}")
+    print("Some functionality may be limited")
 
-class WebotsGo2Controller:
-    """
-    Webots controller for Unitree Go2 robot with behavioral study integration
-    """
-    
+class Go2RobotController:
     def __init__(self):
-        # Initialize Webots robot
         self.robot = Robot()
         self.timestep = int(self.robot.getBasicTimeStep())
         
-        # Initialize sensors
-        self._initialize_sensors()
+        # Initialize sensors and actuators
+        self.init_devices()
         
-        # Initialize behavioral study components if available
-        self._initialize_behavioral_system()
+        # Initialize core systems
+        self.init_systems()
         
         # Robot state
-        self.position = [0, 0, 0]
-        self.orientation = [0, 0, 0]
-        self.velocity = [0, 0, 0]
+        self.current_position = [0, 0, 0]
+        self.current_orientation = 0
+        self.current_state = "idle"
         
-        # Worker detection
-        self.detected_workers = {}
-        self.worker_detection_range = 10.0  # meters
+        # Navigation and mapping
+        self.environment_map = None
+        self.current_path = []
+        self.target_position = None
         
-        # Navigation
-        self.current_target = None
-        self.path = []
-        self.path_index = 0
+        # Human tracking
+        self.detected_humans = {}
+        self.last_human_detection = {}
         
-        print("Webots Go2 Controller initialized")
+        print("Go2 Robot Controller initialized successfully")
     
-    def _initialize_sensors(self):
-        """Initialize all robot sensors"""
+    def init_devices(self):
+        """Initialize all sensors and actuators for the Go2 robot"""
+        # Camera sensors
         try:
-            # Camera (RealSense RGB)
-            self.camera = self.robot.getDevice("realsense_rgb")
-            if self.camera:
-                self.camera.enable(self.timestep)
-                print("✓ RGB Camera initialized")
-            
-            # Depth camera (RealSense Depth)
-            self.depth_camera = self.robot.getDevice("realsense_depth")
+            self.front_camera = self.robot.getDevice('front_camera')
+            if self.front_camera:
+                self.front_camera.enable(self.timestep)
+                print("Front camera initialized")
+        except:
+            print("Warning: Front camera not found")
+            self.front_camera = None
+        
+        # Depth camera (RangeFinder)
+        try:
+            self.depth_camera = self.robot.getDevice('depth_camera')
             if self.depth_camera:
                 self.depth_camera.enable(self.timestep)
-                print("✓ Depth Camera initialized")
-            
-            # GPS
-            self.gps = self.robot.getDevice("gps")
-            if self.gps:
-                self.gps.enable(self.timestep)
-                print("✓ GPS initialized")
-            
-            # Compass
-            self.compass = self.robot.getDevice("compass")
-            if self.compass:
-                self.compass.enable(self.timestep)
-                print("✓ Compass initialized")
-            
-            # IMU
-            self.imu = self.robot.getDevice("imu")
-            if self.imu:
-                self.imu.enable(self.timestep)
-                print("✓ IMU initialized")
-            
-            # Lidar
-            self.lidar = self.robot.getDevice("lidar")
+                print("Depth camera initialized")
+        except:
+            print("Warning: Depth camera not found")
+            self.depth_camera = None
+        
+        # Lidar
+        try:
+            self.lidar = self.robot.getDevice('lidar')
             if self.lidar:
                 self.lidar.enable(self.timestep)
-                print("✓ Lidar initialized")
-            
-        except Exception as e:
-            print(f"Warning: Error initializing sensors: {e}")
-    
-    def _initialize_behavioral_system(self):
-        """Initialize behavioral study system"""
-        self.behavioral_system_available = False
+                self.lidar.enablePointCloud()
+                print("Lidar initialized")
+        except:
+            print("Warning: Lidar not found")
+            self.lidar = None
         
+        # GPS for position tracking
         try:
-            # Initialize behavioral parameters
-            behavior_params = BehaviorParameters(
-                patrol_speed=1.0,
-                approach_speed=0.5,
-                observe_speed=0.2,
-                retreat_speed=0.8,
-                close_threshold=2.0,
-                very_close_threshold=1.0
-            )
-            
-            # Initialize behavioral controller
-            self.behavior_controller = BehaviorController(behavior_params)
-            
-            # Initialize data collection system
-            session_id = f"webots_session_{int(self.robot.getTime())}"
-            self.data_collector = DataCollectionSystem(session_id, "webots_participant")
-            
-            # Initialize environment mapping
-            map_config = GridMapConfig(
-                resolution=0.1,
-                width=400,  # 40m x 40m area
-                height=400,
-                max_height=5.0,
-                min_height=-1.0
-            )
-            self.environment_mapper = EnvironmentMapper(map_config, world_origin=(-20, -20))
-            
-            # Initialize path planner
-            self.path_planner = AStarPlanner(
+            self.gps = self.robot.getDevice('gps')
+            if self.gps:
+                self.gps.enable(self.timestep)
+                print("GPS initialized")
+        except:
+            print("Warning: GPS not found")
+            self.gps = None
+        
+        # Compass for orientation
+        try:
+            self.compass = self.robot.getDevice('compass')
+            if self.compass:
+                self.compass.enable(self.timestep)
+                print("Compass initialized")
+        except:
+            print("Warning: Compass not found")
+            self.compass = None
+        
+        # IMU for inertial measurements
+        try:
+            self.imu = self.robot.getDevice('imu')
+            if self.imu:
+                self.imu.enable(self.timestep)
+                print("IMU initialized")
+        except:
+            print("Warning: IMU not found")
+            self.imu = None
+        
+        # Motors (for Go2 proto, these might be named differently)
+        self.motors = {}
+        motor_names = [
+            'FL_hip_joint', 'FL_thigh_joint', 'FL_calf_joint',
+            'FR_hip_joint', 'FR_thigh_joint', 'FR_calf_joint',
+            'RL_hip_joint', 'RL_thigh_joint', 'RL_calf_joint',
+            'RR_hip_joint', 'RR_thigh_joint', 'RR_calf_joint'
+        ]
+        
+        for name in motor_names:
+            try:
+                motor = self.robot.getDevice(name)
+                if motor:
+                    self.motors[name] = motor
+                    motor.setPosition(0.0)  # Set to neutral position
+            except:
+                print(f"Warning: Motor {name} not found")
+        
+        print(f"Initialized {len(self.motors)} motors")
+    
+    def init_systems(self):
+        """Initialize the robot's core systems"""
+        try:
+            # Environment mapper
+            self.environment_mapper = EnvironmentMapper(
                 grid_resolution=0.1,
-                max_slope=0.3,
-                max_step_height=0.15,
-                robot_radius=0.3
+                environment_size=(50, 50)
             )
             
-            self.behavioral_system_available = True
-            print("✓ Behavioral study system initialized")
+            # Path planner
+            self.pathfinder = AStarPathfinder(
+                grid_resolution=0.1,
+                robot_radius=0.3,
+                max_slope=30,
+                max_step_height=0.15
+            )
+            
+            # Behavioral controller
+            self.behavioral_controller = BehavioralController()
+            
+            # Data collector
+            self.data_collector = DataCollector(
+                session_name=f"webots_simulation_{int(time.time())}"
+            )
+            
+            # Sensor processor
+            self.sensor_processor = SensorProcessor()
+            
+            print("All core systems initialized")
             
         except Exception as e:
-            print(f"Warning: Behavioral system not available: {e}")
-            self.behavioral_system_available = False
+            print(f"Warning: Could not initialize all systems: {e}")
+            # Initialize minimal systems
+            self.environment_mapper = None
+            self.pathfinder = None
+            self.behavioral_controller = None
+            self.data_collector = None
+            self.sensor_processor = None
     
-    def get_sensor_data(self):
-        """Collect data from all sensors"""
+    def update_sensors(self):
+        """Update all sensor readings"""
         sensor_data = {}
         
-        try:
-            # GPS position
-            if self.gps:
+        # GPS position
+        if self.gps:
+            try:
                 gps_values = self.gps.getValues()
-                self.position = [gps_values[0], gps_values[1], gps_values[2]]
-                sensor_data['gps'] = self.position
-            
-            # Compass orientation
-            if self.compass:
-                compass_values = self.compass.getValues()
-                # Convert to euler angles
-                heading = math.atan2(compass_values[1], compass_values[0])
-                self.orientation = [0, 0, heading]  # Simplified - only yaw
-                sensor_data['compass'] = compass_values
-            
-            # IMU data
-            if self.imu:
-                imu_values = self.imu.getRollPitchYaw()
-                sensor_data['imu'] = imu_values
-                self.orientation = [imu_values[0], imu_values[1], imu_values[2]]
-            
-            # Camera image
-            if self.camera:
-                rgb_image = self.camera.getImageArray()
-                if rgb_image:
-                    sensor_data['rgb_image'] = np.array(rgb_image, dtype=np.uint8)
-            
-            # Depth image
-            if self.depth_camera:
-                depth_image = self.depth_camera.getRangeImageArray()
-                if depth_image:
-                    sensor_data['depth_image'] = np.array(depth_image, dtype=np.float32)
-            
-            # Lidar data
-            if self.lidar:
-                lidar_data = self.lidar.getRangeImage()
-                if lidar_data:
-                    sensor_data['lidar'] = np.array(lidar_data)
-            
-        except Exception as e:
-            print(f"Error collecting sensor data: {e}")
+                self.current_position = list(gps_values)
+                sensor_data['gps'] = gps_values
+            except:
+                pass
+        
+        # Compass orientation
+        if self.compass:
+            try:
+                north = self.compass.getValues()
+                self.current_orientation = math.atan2(north[1], north[0])
+                sensor_data['compass'] = self.current_orientation
+            except:
+                pass
+        
+        # IMU data
+        if self.imu:
+            try:
+                roll_pitch_yaw = self.imu.getRollPitchYaw()
+                sensor_data['imu'] = {
+                    'roll': roll_pitch_yaw[0],
+                    'pitch': roll_pitch_yaw[1],
+                    'yaw': roll_pitch_yaw[2]
+                }
+            except:
+                pass
+        
+        # Camera image
+        if self.front_camera:
+            try:
+                image = self.front_camera.getImage()
+                if image:
+                    width = self.front_camera.getWidth()
+                    height = self.front_camera.getHeight()
+                    sensor_data['camera'] = {
+                        'width': width,
+                        'height': height,
+                        'image_available': True
+                    }
+            except:
+                pass
+        
+        # Depth data
+        if self.depth_camera:
+            try:
+                range_image = self.depth_camera.getRangeImage()
+                if range_image:
+                    sensor_data['depth'] = {
+                        'width': self.depth_camera.getWidth(),
+                        'height': self.depth_camera.getHeight(),
+                        'max_range': self.depth_camera.getMaxRange(),
+                        'data_available': True
+                    }
+            except:
+                pass
+        
+        # Lidar data
+        if self.lidar:
+            try:
+                point_cloud = self.lidar.getPointCloud()
+                if point_cloud:
+                    sensor_data['lidar'] = {
+                        'points': len(point_cloud) // 3,  # Each point has x,y,z
+                        'horizontal_resolution': self.lidar.getHorizontalResolution(),
+                        'number_of_layers': self.lidar.getNumberOfLayers(),
+                        'data_available': True
+                    }
+            except:
+                pass
         
         return sensor_data
     
-    def detect_workers(self):
-        """Detect human workers in the environment using sensor data"""
-        detected_workers = []
+    def detect_humans(self, sensor_data):
+        """Detect humans in the environment using available sensors"""
+        detected_humans = []
         
-        try:
-            # Get current robot position
-            robot_pos = self.position
-            
-            # Simulate worker detection using known worker positions
-            # In a real implementation, this would use computer vision
-            # For simulation, we'll check for nearby "Worker" robots
-            
-            # Get supervisor to access other robots (if available)
-            supervisor = self.robot.getSupervisor()
-            if supervisor:
-                # Find worker robots
-                for i in range(1, 4):  # Workers 1-3
-                    worker_name = f"Worker{i}"
-                    worker_node = supervisor.getFromDef(worker_name)
-                    if worker_node:
-                        worker_pos = worker_node.getPosition()
-                        distance = math.sqrt(
-                            (worker_pos[0] - robot_pos[0])**2 + 
-                            (worker_pos[1] - robot_pos[1])**2
-                        )
+        # Simple human detection based on Lidar data
+        if self.lidar and 'lidar' in sensor_data and sensor_data['lidar']['data_available']:
+            try:
+                point_cloud = self.lidar.getPointCloud()
+                if point_cloud:
+                    # Process point cloud to detect human-like objects
+                    # This is a simplified detection algorithm
+                    for i in range(0, len(point_cloud), 3):
+                        x, y, z = point_cloud[i], point_cloud[i+1], point_cloud[i+2]
                         
-                        if distance <= self.worker_detection_range:
-                            detected_workers.append((i, worker_pos[0], worker_pos[1], worker_pos[2]))
-            
-            # Fallback: simulate workers at known approximate locations
-            if not detected_workers:
-                simulated_workers = [
-                    (1, -5, -3, 0),
-                    (2, 8, 5, 0),
-                    (3, 3, -8, 0)
-                ]
-                
-                for worker_id, x, y, z in simulated_workers:
-                    distance = math.sqrt((x - robot_pos[0])**2 + (y - robot_pos[1])**2)
-                    if distance <= self.worker_detection_range:
-                        # Add some noise to simulate detection uncertainty
-                        noisy_x = x + np.random.normal(0, 0.5)
-                        noisy_y = y + np.random.normal(0, 0.5)
-                        detected_workers.append((worker_id, noisy_x, noisy_y, z))
+                        # Look for objects at human height (1.5-2.0m) and reasonable distance
+                        if 1.2 < z < 2.2 and math.sqrt(x*x + y*y) < 15:
+                            # Convert to global coordinates
+                            global_x = self.current_position[0] + x * math.cos(self.current_orientation) - y * math.sin(self.current_orientation)
+                            global_y = self.current_position[1] + x * math.sin(self.current_orientation) + y * math.cos(self.current_orientation)
+                            
+                            detected_humans.append({
+                                'position': [global_x, global_y, z],
+                                'distance': math.sqrt(x*x + y*y),
+                                'confidence': 0.7  # Simple confidence score
+                            })
+            except Exception as e:
+                print(f"Error in human detection: {e}")
         
-        except Exception as e:
-            print(f"Error in worker detection: {e}")
+        # Update human tracking
+        current_time = self.robot.getTime()
+        for human in detected_humans:
+            human_id = f"human_{len(self.detected_humans)}"
+            self.detected_humans[human_id] = human
+            self.last_human_detection[human_id] = current_time
         
-        return detected_workers
+        return detected_humans
     
     def update_environment_map(self, sensor_data):
         """Update the environment map with new sensor data"""
-        if not self.behavioral_system_available:
+        if not self.environment_mapper:
             return
         
         try:
-            if 'rgb_image' in sensor_data and 'depth_image' in sensor_data:
-                # Create SensorData object
-                rgb_img = sensor_data['rgb_image']
-                depth_img = sensor_data['depth_image']
-                
-                # Robot pose (x, y, z, roll, pitch, yaw)
-                robot_pose = (
-                    self.position[0], self.position[1], self.position[2],
-                    self.orientation[0], self.orientation[1], self.orientation[2]
-                )
-                
-                sensor_data_obj = SensorData(rgb_img, depth_img, robot_pose, self.robot.getTime())
-                
-                # Process sensor data
-                self.environment_mapper.process_sensor_data(sensor_data_obj)
-                
-                # Update path planner with new map
-                height_map, obstacle_map = self.environment_mapper.get_maps_for_pathfinding()
-                self.path_planner.set_environment(height_map, obstacle_map)
-        
+            # Process Lidar data for mapping
+            if self.lidar and 'lidar' in sensor_data:
+                point_cloud = self.lidar.getPointCloud()
+                if point_cloud:
+                    # Convert point cloud to occupancy grid updates
+                    robot_pos = self.current_position[:2]  # x, y only
+                    robot_orientation = self.current_orientation
+                    
+                    self.environment_mapper.update_from_lidar(
+                        point_cloud, robot_pos, robot_orientation
+                    )
+            
+            # Process depth camera data
+            if self.depth_camera and 'depth' in sensor_data:
+                range_image = self.depth_camera.getRangeImage()
+                if range_image:
+                    self.environment_mapper.update_from_depth_camera(
+                        range_image,
+                        self.current_position[:2],
+                        self.current_orientation
+                    )
+                    
         except Exception as e:
             print(f"Error updating environment map: {e}")
     
-    def plan_path_to_target(self, target_position):
+    def plan_path(self, target):
         """Plan a path to the target position"""
-        if not self.behavioral_system_available:
-            return None
+        if not self.pathfinder or not self.environment_mapper:
+            return []
         
         try:
-            # Convert world coordinates to grid coordinates
-            start_grid = self.environment_mapper.world_to_grid(self.position[0], self.position[1])
-            goal_grid = self.environment_mapper.world_to_grid(target_position[0], target_position[1])
+            # Get current environment map
+            occupancy_grid = self.environment_mapper.get_occupancy_grid()
             
-            # Find path
-            path = self.path_planner.find_path(start_grid, goal_grid)
+            # Plan path
+            start = self.current_position[:2]
+            path = self.pathfinder.find_path(start, target, occupancy_grid)
             
             if path:
-                # Convert back to world coordinates
-                world_path = self.path_planner.grid_to_world(path, self.environment_mapper.world_origin)
-                return world_path
-            
+                self.current_path = path
+                self.target_position = target
+                print(f"Path planned with {len(path)} waypoints")
+                return path
+            else:
+                print("No path found to target")
+                return []
+                
         except Exception as e:
-            print(f"Error planning path: {e}")
-        
-        return None
+            print(f"Error in path planning: {e}")
+            return []
     
-    def execute_movement(self, target_position, speed):
-        """Execute movement towards target position"""
-        try:
-            # Calculate direction to target
-            dx = target_position[0] - self.position[0]
-            dy = target_position[1] - self.position[1]
-            distance = math.sqrt(dx*dx + dy*dy)
-            
-            if distance < 0.5:  # Close enough to target
-                return True
-            
-            # Calculate desired heading
-            desired_heading = math.atan2(dy, dx)
-            current_heading = self.orientation[2]
-            
-            # Simple movement simulation (in real implementation, would control motors)
-            print(f"Moving towards ({target_position[0]:.2f}, {target_position[1]:.2f}) at speed {speed:.2f}")
-            
-            # Update velocity for data logging
-            if distance > 0:
-                self.velocity = [
-                    (dx / distance) * speed,
-                    (dy / distance) * speed,
-                    0
-                ]
-            
-            return False
-            
-        except Exception as e:
-            print(f"Error executing movement: {e}")
-            return True
-    
-    def log_telemetry_data(self, behavioral_result, detected_workers):
-        """Log robot telemetry data"""
-        if not self.behavioral_system_available:
+    def execute_movement(self):
+        """Execute movement along the planned path"""
+        if not self.current_path:
             return
         
         try:
-            # Calculate worker distances
-            worker_distances = {}
-            for worker_id, x, y, z in detected_workers:
-                distance = math.sqrt((x - self.position[0])**2 + (y - self.position[1])**2)
-                worker_distances[worker_id] = distance
+            # Simple movement execution for Go2
+            # In a real implementation, this would use the Go2's locomotion system
             
-            # Create telemetry data
-            robot_state = {
-                'position': tuple(self.position),
-                'orientation': tuple(self.orientation),
-                'velocity': tuple(self.velocity),
-                'behavioral_state': behavioral_result.get('current_state', 'unknown'),
-                'target_worker_id': self.behavior_controller.state_machine.target_worker_id,
-                'worker_distances': worker_distances,
-                'movement_speed': behavioral_result.get('speed', 0.0),
-                'emergency_status': behavioral_result.get('emergency_stop', False)
+            current_pos = self.current_position[:2]
+            next_waypoint = self.current_path[0]
+            
+            # Calculate direction to next waypoint
+            dx = next_waypoint[0] - current_pos[0]
+            dy = next_waypoint[1] - current_pos[1]
+            distance = math.sqrt(dx*dx + dy*dy)
+            
+            if distance < 0.5:  # Close enough to waypoint
+                self.current_path.pop(0)  # Remove reached waypoint
+                if not self.current_path:
+                    print("Target reached!")
+                    self.current_state = "idle"
+            else:
+                # Move towards waypoint
+                self.current_state = "moving"
+                
+                # Simple motor control (this would be much more complex for real Go2)
+                # For now, we'll just track the intended movement
+                print(f"Moving towards waypoint {next_waypoint}, distance: {distance:.2f}m")
+                
+        except Exception as e:
+            print(f"Error in movement execution: {e}")
+    
+    def collect_telemetry_data(self, sensor_data):
+        """Collect telemetry data for analysis"""
+        if not self.data_collector:
+            return
+        
+        try:
+            telemetry = {
+                'timestamp': self.robot.getTime(),
+                'position': self.current_position,
+                'orientation': self.current_orientation,
+                'state': self.current_state,
+                'sensor_data': sensor_data,
+                'detected_humans': len(self.detected_humans),
+                'path_length': len(self.current_path)
             }
             
-            # Log to data collection system
-            self.data_collector.collect_robot_data(robot_state)
+            self.data_collector.log_robot_telemetry(telemetry)
             
-            # Track worker interactions
-            for worker_id, distance in worker_distances.items():
-                self.data_collector.track_worker_interaction(
-                    worker_id, distance, robot_state['behavioral_state']
-                )
-        
         except Exception as e:
-            print(f"Error logging telemetry: {e}")
+            print(f"Error collecting telemetry: {e}")
+    
+    def run_behavioral_control(self, sensor_data):
+        """Run behavioral control system"""
+        if not self.behavioral_controller:
+            return
+        
+        try:
+            # Update behavioral parameters based on environment
+            humans_nearby = [h for h in self.detected_humans.values() if h['distance'] < 5.0]
+            
+            if humans_nearby:
+                # Adjust behavior when humans are nearby
+                self.behavioral_controller.set_parameter('proximity_threshold', 2.0)
+                self.behavioral_controller.set_parameter('movement_speed', 0.3)
+            else:
+                # Normal behavior
+                self.behavioral_controller.set_parameter('proximity_threshold', 1.0)
+                self.behavioral_controller.set_parameter('movement_speed', 0.5)
+            
+            # Update behavioral state
+            self.behavioral_controller.update_state(sensor_data)
+            
+        except Exception as e:
+            print(f"Error in behavioral control: {e}")
     
     def run(self):
         """Main control loop"""
-        print("Starting Webots Go2 robot control loop")
-        
-        # Start data collection if available
-        if self.behavioral_system_available:
-            self.data_collector.start_collection()
+        print("Go2 Robot starting main control loop")
         
         step_count = 0
+        last_status_time = 0
         
         while self.robot.step(self.timestep) != -1:
             step_count += 1
+            current_time = self.robot.getTime()
             
-            try:
-                # Collect sensor data
-                sensor_data = self.get_sensor_data()
-                
-                # Detect workers
-                detected_workers = self.detect_workers()
-                
-                # Update environment map periodically
-                if step_count % 10 == 0:  # Every 10 steps
-                    self.update_environment_map(sensor_data)
-                
-                # Update behavioral system if available
-                if self.behavioral_system_available:
-                    # Update behavior controller with worker detections
-                    self.behavior_controller.update_worker_detections(detected_workers)
-                    
-                    # Get behavioral decision
-                    behavioral_result = self.behavior_controller.update()
-                    
-                    # Get target position from behavioral controller
-                    target_pos = behavioral_result.get('target_position')
-                    if target_pos:
-                        # Plan path if needed
-                        if not self.path or step_count % 50 == 0:  # Replan every 50 steps
-                            self.path = self.plan_path_to_target(target_pos)
-                            self.path_index = 0
-                        
-                        # Execute movement
-                        if self.path and self.path_index < len(self.path):
-                            current_waypoint = self.path[self.path_index]
-                            reached = self.execute_movement(current_waypoint, behavioral_result.get('speed', 0.5))
-                            if reached:
-                                self.path_index += 1
-                        else:
-                            # Move directly to target
-                            self.execute_movement(target_pos, behavioral_result.get('speed', 0.5))
-                    
-                    # Log telemetry data
-                    if step_count % 5 == 0:  # Every 5 steps
-                        self.log_telemetry_data(behavioral_result, detected_workers)
-                
-                # Print status periodically
-                if step_count % 100 == 0:
-                    print(f"Robot at ({self.position[0]:.2f}, {self.position[1]:.2f}), "
-                          f"Workers detected: {len(detected_workers)}")
-                    
-                    if self.behavioral_system_available:
-                        current_state = self.behavior_controller.state_machine.current_state.value
-                        print(f"Behavioral state: {current_state}")
+            # Update sensors
+            sensor_data = self.update_sensors()
             
-            except Exception as e:
-                print(f"Error in main loop: {e}")
-                continue
-        
-        # Stop data collection
-        if self.behavioral_system_available:
-            self.data_collector.stop_collection()
-        
-        print("Robot control loop ended")
+            # Detect humans
+            detected_humans = self.detect_humans(sensor_data)
+            
+            # Update environment map
+            self.update_environment_map(sensor_data)
+            
+            # Run behavioral control
+            self.run_behavioral_control(sensor_data)
+            
+            # Execute movement if path exists
+            self.execute_movement()
+            
+            # Collect telemetry data
+            self.collect_telemetry_data(sensor_data)
+            
+            # Periodic status updates
+            if current_time - last_status_time > 5.0:  # Every 5 seconds
+                print(f"Robot Status - Pos: [{self.current_position[0]:.1f}, {self.current_position[1]:.1f}], "
+                      f"State: {self.current_state}, Humans detected: {len(detected_humans)}")
+                last_status_time = current_time
+            
+            # Example: Set a patrol target every 30 seconds
+            if step_count % (30000 // self.timestep) == 0:
+                # Generate random patrol target within construction site
+                target_x = np.random.uniform(-20, 20)
+                target_y = np.random.uniform(-20, 20)
+                self.plan_path([target_x, target_y])
 
 def main():
     """Main function"""
-    controller = WebotsGo2Controller()
+    controller = Go2RobotController()
     controller.run()
 
 if __name__ == "__main__":

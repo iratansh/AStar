@@ -18,6 +18,7 @@ def create_webots_project_structure():
         "worlds",
         "controllers/robot_controller",
         "controllers/human_controller",
+        "controllers/boundary_supervisor",
         "protos",
         "plugins"
     ]
@@ -61,6 +62,12 @@ def copy_controller_files():
     if os.path.exists("human_controller.py"):
         shutil.copy2("human_controller.py", "controllers/human_controller/")
         print("✓ Copied human controller")
+    
+    # Copy boundary supervisor
+    if os.path.exists("controllers/boundary_supervisor/boundary_supervisor.py"):
+        print("✓ Boundary supervisor already in correct location")
+    else:
+        print("⚠ Warning: boundary_supervisor.py not found")
 
 def copy_world_file():
     """Copy world file to worlds directory"""
@@ -99,6 +106,18 @@ include $(WEBOTS_HOME_PATH)/resources/Makefile.include
     with open("controllers/human_controller/Makefile", "w") as f:
         f.write(human_makefile_content)
     print("✓ Created human controller Makefile")
+    
+    # Boundary supervisor Makefile
+    boundary_makefile_content = """# Webots Makefile for Boundary Supervisor
+null :
+
+WEBOTS_HOME_PATH = /usr/local/webots
+include $(WEBOTS_HOME_PATH)/resources/Makefile.include
+"""
+    
+    with open("controllers/boundary_supervisor/Makefile", "w") as f:
+        f.write(boundary_makefile_content)
+    print("✓ Created boundary supervisor Makefile")
 
 def create_runtime_ini():
     """Create runtime.ini file for Python controllers"""
@@ -121,6 +140,15 @@ command = python3 human_controller.py
     with open("controllers/human_controller/runtime.ini", "w") as f:
         f.write(human_runtime_content)
     print("✓ Created human controller runtime.ini")
+    
+    # Boundary supervisor runtime.ini
+    boundary_runtime_content = """[python]
+command = python3 boundary_supervisor.py
+"""
+    
+    with open("controllers/boundary_supervisor/runtime.ini", "w") as f:
+        f.write(boundary_runtime_content)
+    print("✓ Created boundary supervisor runtime.ini")
 
 def create_requirements():
     """Create requirements file for the Webots project"""

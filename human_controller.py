@@ -1,272 +1,309 @@
 #!/usr/bin/env python3
+
 """
-Human Worker Controller for Webots Construction Site Simulation
-Implements realistic movement patterns for construction workers
+Enhanced Human Worker Controller for Webots Pedestrian Proto
+
+This controller manages realistic human worker behavior in the construction site
+using the official Webots Pedestrian proto. It includes proper movement patterns,
+work zones, and boundary awareness to prevent workers from leaving the site.
 """
 
-import sys
-import math
+from controller import Robot
 import random
+import math
+import sys
 import time
-from controller import Robot, Motor, GPS
 
-class HumanWorker:
-    """
-    Controller for human worker robots in the construction site
-    Implements realistic movement patterns and behaviors
-    """
-    
-    def __init__(self, worker_id):
+class HumanWorkerController:
+    def __init__(self, worker_id="worker_1"):
         self.robot = Robot()
         self.worker_id = worker_id
         self.timestep = int(self.robot.getBasicTimeStep())
         
-        # Initialize sensors
-        self.gps = self.robot.getDevice(f"{worker_id}_gps")
-        if self.gps:
-            self.gps.enable(self.timestep)
+        # Initialize sensors and actuators for Pedestrian proto
+        self.init_devices()
         
-        # Movement parameters
-        self.max_speed = 1.2  # m/s walking speed
-        self.current_speed = 0.0
-        self.target_position = None
-        self.current_position = [0, 0, 0]
+        # Construction site boundaries (matching the arena)
+        self.boundaries = {
+            'x_min': -23.0, 'x_max': 23.0,
+            'y_min': -23.0, 'y_max': 23.0
+        }
         
-        # Behavior state
-        self.state = "working"  # working, walking, break, idle
-        self.state_start_time = 0
-        self.work_duration = random.uniform(30, 120)  # 30-120 seconds
-        self.break_duration = random.uniform(10, 30)   # 10-30 seconds
-        self.walk_duration = random.uniform(5, 15)     # 5-15 seconds
+        # Worker-specific configuration
+        self.configure_worker()
         
-        # Work zones and patterns based on worker ID
-        self.work_zones = self._define_work_zones()
-        self.current_zone_index = 0
-        self.zone_visit_order = list(range(len(self.work_zones)))
-        random.shuffle(self.zone_visit_order)
+        # Movement and behavior state
+        self.current_state = "idle"
+        self.state_timer = 0
+        self.target_position = [0, 0]
+        self.current_position = [0, 0]
+        self.movement_speed = 0.5  # m/s walking speed
         
-        # Movement tracking
-        self.last_position = [0, 0, 0]
-        self.movement_history = []
-        self.idle_time = 0
+        # Work patterns
+        self.work_schedule = self.create_work_schedule()
+        self.current_task_index = 0
         
-        print(f"Human worker {worker_id} initialized")
+        print(f"Human Worker {self.worker_id} controller initialized")
+        print(f"Work zone: {self.work_zone}")
     
-    def _define_work_zones(self):
-        """Define work zones based on worker ID"""
-        if self.worker_id == "worker1":
-            # Worker 1 focuses on scaffolding and material handling
-            return [
-                [-10, 5, 0],    # Scaffolding area
-                [-15, -10, 0],  # Material storage
-                [-8, -15, 0],   # Container area
-                [-5, 0, 0],     # Central work area
-            ]
-        elif self.worker_id == "worker2":
-            # Worker 2 works on equipment and pipe installation
-            return [
-                [10, 8, 0],     # Pipe installation area
-                [12, -8, 0],    # Near excavator
-                [18, 12, 0],    # Tool shed
-                [5, 5, 0],      # Central coordination point
-            ]
-        elif self.worker_id == "worker3":
-            # Worker 3 handles barriers and safety equipment
-            return [
-                [15, 0, 0],     # Concrete barriers
-                [5, 3, 0],      # Safety cone area
-                [7, -5, 0],     # Another safety area
-                [0, 10, 0],     # Perimeter check
-            ]
+    def init_devices(self):
+        """Initialize sensors and actuators for Pedestrian proto"""
+        try:
+            # GPS for position tracking
+            self.gps = self.robot.getDevice('gps')
+            if self.gps:
+                self.gps.enable(self.timestep)
+            
+            # Compass for orientation
+            self.compass = self.robot.getDevice('compass')
+            if self.compass:
+                self.compass.enable(self.timestep)
+            
+            # For Pedestrian proto, we don't have direct motor control
+            # Movement is controlled through the supervisor or physics
+            
+        except Exception as e:
+            print(f"Warning: Could not initialize some devices: {e}")
+            # Continue without devices if needed
+            self.gps = None
+            self.compass = None
+    
+    def configure_worker(self):
+        """Configure worker-specific parameters based on worker ID"""
+        if self.worker_id == "worker_1":
+            self.work_zone = {'center': [10, 8], 'radius': 8}
+            self.work_type = "scaffolding"
+            self.break_frequency = 0.15  # 15% chance per minute
+            
+        elif self.worker_id == "worker_2":
+            self.work_zone = {'center': [-8, 12], 'radius': 6}
+            self.work_type = "materials"
+            self.break_frequency = 0.12  # 12% chance per minute
+            
+        elif self.worker_id == "worker_3":
+            self.work_zone = {'center': [5, -10], 'radius': 7}
+            self.work_type = "equipment"
+            self.break_frequency = 0.18  # 18% chance per minute
+            
         else:
-            # Default pattern for any additional workers
-            return [
-                [0, 0, 0],
-                [5, 5, 0],
-                [-5, -5, 0],
-                [0, 8, 0],
-            ]
+            # Default configuration
+            self.work_zone = {'center': [0, 0], 'radius': 5}
+            self.work_type = "general"
+            self.break_frequency = 0.15
     
-    def get_position(self):
-        """Get current GPS position"""
+    def create_work_schedule(self):
+        """Create a realistic work schedule for the worker"""
+        schedule = []
+        
+        # Work tasks based on worker type
+        if self.work_type == "scaffolding":
+            tasks = [
+                {"action": "work", "location": [12, 5], "duration": 180},  # 3 minutes
+                {"action": "walk", "location": [15, 8], "duration": 30},   # 30 seconds
+                {"action": "work", "location": [15, 8], "duration": 240},  # 4 minutes
+                {"action": "break", "location": [10, 10], "duration": 120}, # 2 minutes
+                {"action": "walk", "location": [13, 6], "duration": 20},
+                {"action": "work", "location": [13, 6], "duration": 300},  # 5 minutes
+            ]
+        elif self.work_type == "materials":
+            tasks = [
+                {"action": "work", "location": [-15, -10], "duration": 150},
+                {"action": "walk", "location": [-8, -15], "duration": 40},
+                {"action": "work", "location": [-8, -15], "duration": 200},
+                {"action": "break", "location": [-5, -12], "duration": 90},
+                {"action": "walk", "location": [-12, -8], "duration": 35},
+                {"action": "work", "location": [-12, -8], "duration": 220},
+            ]
+        else:  # equipment worker
+            tasks = [
+                {"action": "work", "location": [18, -5], "duration": 160},
+                {"action": "walk", "location": [5, -15], "duration": 50},
+                {"action": "work", "location": [5, -15], "duration": 180},
+                {"action": "break", "location": [8, -8], "duration": 100},
+                {"action": "walk", "location": [12, -12], "duration": 30},
+                {"action": "work", "location": [12, -12], "duration": 250},
+            ]
+        
+        return tasks
+    
+    def get_current_position(self):
+        """Get current position from GPS or use stored position"""
         if self.gps:
-            pos = self.gps.getValues()
-            self.current_position = [pos[0], pos[1], pos[2]]
-            return self.current_position
+            try:
+                pos = self.gps.getValues()
+                self.current_position = [pos[0], pos[1]]
+                return self.current_position
+            except:
+                pass
+        
+        # Return stored position if GPS not available
         return self.current_position
     
-    def calculate_distance(self, pos1, pos2):
-        """Calculate Euclidean distance between two positions"""
+    def get_current_orientation(self):
+        """Get current orientation from compass"""
+        if self.compass:
+            try:
+                north = self.compass.getValues()
+                angle = math.atan2(north[1], north[0])
+                return angle
+            except:
+                pass
+        return 0.0
+    
+    def is_within_boundaries(self, position):
+        """Check if position is within construction site boundaries"""
+        x, y = position
+        return (self.boundaries['x_min'] <= x <= self.boundaries['x_max'] and
+                self.boundaries['y_min'] <= y <= self.boundaries['y_max'])
+    
+    def clamp_to_boundaries(self, position):
+        """Clamp position to stay within boundaries"""
+        x, y = position
+        x = max(self.boundaries['x_min'], min(self.boundaries['x_max'], x))
+        y = max(self.boundaries['y_min'], min(self.boundaries['y_max'], y))
+        return [x, y]
+    
+    def distance_to_point(self, pos1, pos2):
+        """Calculate distance between two points"""
         return math.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2)
     
-    def move_towards_target(self, target, speed_factor=1.0):
-        """
-        Move towards target position
-        Returns True if target reached, False otherwise
-        """
-        current_pos = self.get_position()
+    def generate_work_position(self):
+        """Generate a random work position within the worker's zone"""
+        center = self.work_zone['center']
+        radius = self.work_zone['radius']
         
-        # Calculate direction to target
-        dx = target[0] - current_pos[0]
-        dy = target[1] - current_pos[1]
-        distance = math.sqrt(dx*dx + dy*dy)
+        # Generate random position within work zone
+        angle = random.uniform(0, 2 * math.pi)
+        distance = random.uniform(0, radius * 0.8)  # Stay within 80% of radius
         
-        # Check if target reached
-        if distance < 0.5:  # 0.5m tolerance
-            return True
+        x = center[0] + distance * math.cos(angle)
+        y = center[1] + distance * math.sin(angle)
         
-        # Calculate movement direction
-        if distance > 0:
-            move_x = (dx / distance) * self.max_speed * speed_factor
-            move_y = (dy / distance) * self.max_speed * speed_factor
-            
-            # Update position (simplified movement for simulation)
-            new_x = current_pos[0] + move_x * (self.timestep / 1000.0)
-            new_y = current_pos[1] + move_y * (self.timestep / 1000.0)
-            
-            # Store movement history
-            self.movement_history.append({
-                'time': self.robot.getTime(),
-                'position': [new_x, new_y, current_pos[2]],
-                'target': target,
-                'state': self.state
-            })
-            
-            # Limit history size
-            if len(self.movement_history) > 1000:
-                self.movement_history = self.movement_history[-500:]
-        
-        return False
-    
-    def select_next_work_zone(self):
-        """Select next work zone to visit"""
-        # Move to next zone in shuffled order
-        self.current_zone_index = (self.current_zone_index + 1) % len(self.zone_visit_order)
-        zone_idx = self.zone_visit_order[self.current_zone_index]
-        
-        # Add some randomness to the exact position within the zone
-        base_pos = self.work_zones[zone_idx]
-        random_offset_x = random.uniform(-2, 2)
-        random_offset_y = random.uniform(-2, 2)
-        
-        return [
-            base_pos[0] + random_offset_x,
-            base_pos[1] + random_offset_y,
-            base_pos[2]
-        ]
+        # Ensure position is within boundaries
+        position = self.clamp_to_boundaries([x, y])
+        return position
     
     def update_behavior_state(self):
-        """Update worker behavior state based on time and conditions"""
+        """Update the worker's behavior state based on schedule and conditions"""
         current_time = self.robot.getTime()
-        time_in_state = current_time - self.state_start_time
         
-        if self.state == "working":
-            if time_in_state > self.work_duration:
-                # Decide next action: break or move to new work zone
-                if random.random() < 0.3:  # 30% chance of break
-                    self.state = "break"
-                    self.break_duration = random.uniform(10, 30)
-                else:
-                    self.state = "walking"
-                    self.target_position = self.select_next_work_zone()
-                    self.walk_duration = random.uniform(5, 15)
-                
-                self.state_start_time = current_time
-                
-        elif self.state == "walking":
-            # Check if target reached or time exceeded
-            if (self.target_position and 
-                self.move_towards_target(self.target_position, speed_factor=0.8)):
-                self.state = "working"
-                self.work_duration = random.uniform(30, 120)
-                self.state_start_time = current_time
-                self.target_position = None
-            elif time_in_state > self.walk_duration:
-                # Timeout - switch to working at current location
-                self.state = "working"
-                self.work_duration = random.uniform(30, 120)
-                self.state_start_time = current_time
-                self.target_position = None
-                
-        elif self.state == "break":
-            if time_in_state > self.break_duration:
-                # End break - either start working or move to new location
-                if random.random() < 0.7:  # 70% chance to work at current location
-                    self.state = "working"
-                    self.work_duration = random.uniform(30, 120)
-                else:
-                    self.state = "walking"
-                    self.target_position = self.select_next_work_zone()
-                    self.walk_duration = random.uniform(5, 15)
-                
-                self.state_start_time = current_time
+        # Get current task from schedule
+        if self.current_task_index < len(self.work_schedule):
+            current_task = self.work_schedule[self.current_task_index]
+        else:
+            # Restart schedule
+            self.current_task_index = 0
+            current_task = self.work_schedule[0]
         
-        elif self.state == "idle":
-            if time_in_state > 5:  # End idle state after 5 seconds
-                self.state = "walking"
-                self.target_position = self.select_next_work_zone()
-                self.state_start_time = current_time
-    
-    def simulate_work_activity(self):
-        """Simulate small movements during work to appear active"""
-        if self.state == "working":
-            current_pos = self.get_position()
+        # Check if current state should change
+        if self.state_timer <= 0:
+            # Move to next task
+            self.current_state = current_task["action"]
+            self.state_timer = current_task["duration"]
             
-            # Small random movements around work position
-            small_movement_x = random.uniform(-0.1, 0.1)
-            small_movement_y = random.uniform(-0.1, 0.1)
+            if "location" in current_task:
+                target = current_task["location"]
+                # Ensure target is within boundaries
+                self.target_position = self.clamp_to_boundaries(target)
+            else:
+                self.target_position = self.generate_work_position()
             
-            # Occasionally make larger adjustments
-            if random.random() < 0.1:  # 10% chance
-                small_movement_x *= 3
-                small_movement_y *= 3
+            self.current_task_index = (self.current_task_index + 1) % len(self.work_schedule)
+            
+            print(f"{self.worker_id}: Starting {self.current_state} at {self.target_position}")
+        
+        # Decrease state timer
+        self.state_timer -= self.timestep / 1000.0  # Convert to seconds
     
-    def get_worker_status(self):
-        """Get current worker status for external monitoring"""
-        return {
-            'worker_id': self.worker_id,
-            'position': self.get_position(),
-            'state': self.state,
-            'target': self.target_position,
-            'time_in_state': self.robot.getTime() - self.state_start_time,
-            'current_zone': self.current_zone_index
-        }
+    def simulate_movement(self):
+        """Simulate realistic human movement patterns"""
+        current_pos = self.get_current_position()
+        
+        if self.current_state in ["walk", "work"]:
+            # Calculate direction to target
+            dx = self.target_position[0] - current_pos[0]
+            dy = self.target_position[1] - current_pos[1]
+            distance = math.sqrt(dx*dx + dy*dy)
+            
+            if distance > 0.5:  # If not close enough to target
+                # Normalize direction and apply movement speed
+                move_distance = self.movement_speed * (self.timestep / 1000.0)
+                
+                if distance > move_distance:
+                    # Move towards target
+                    ratio = move_distance / distance
+                    new_x = current_pos[0] + dx * ratio
+                    new_y = current_pos[1] + dy * ratio
+                else:
+                    # Reached target
+                    new_x, new_y = self.target_position
+                
+                # Ensure new position is within boundaries
+                new_position = self.clamp_to_boundaries([new_x, new_y])
+                self.current_position = new_position
+                
+                # For Pedestrian proto, we would normally use the supervisor
+                # to set the position, but for simulation we'll track it internally
+                
+        elif self.current_state == "idle":
+            # Stay in place or make small random movements
+            if random.random() < 0.1:  # 10% chance to make small movement
+                offset_x = random.uniform(-0.5, 0.5)
+                offset_y = random.uniform(-0.5, 0.5)
+                new_pos = [current_pos[0] + offset_x, current_pos[1] + offset_y]
+                self.current_position = self.clamp_to_boundaries(new_pos)
+    
+    def handle_robot_interaction(self):
+        """Handle interaction with the Go2 robot if nearby"""
+        # This would typically involve checking distance to robot
+        # and modifying behavior accordingly
+        
+        # For now, we'll implement a simple awareness system
+        robot_position = [0, 0]  # Would get this from supervisor or communication
+        current_pos = self.get_current_position()
+        distance_to_robot = self.distance_to_point(current_pos, robot_position)
+        
+        if distance_to_robot < 3.0:  # Robot within 3 meters
+            # Worker becomes aware of robot
+            if random.random() < 0.3:  # 30% chance to look at robot
+                print(f"{self.worker_id}: Noticed robot nearby")
+                # Could modify behavior here (pause work, wave, etc.)
     
     def run(self):
         """Main control loop"""
-        print(f"Starting human worker {self.worker_id} control loop")
+        print(f"{self.worker_id}: Starting work simulation")
         
-        # Initialize state
-        self.state_start_time = self.robot.getTime()
-        self.target_position = self.select_next_work_zone()
-        
+        step_count = 0
         while self.robot.step(self.timestep) != -1:
+            step_count += 1
+            
             # Update behavior state
             self.update_behavior_state()
             
-            # Perform actions based on current state
-            if self.state == "walking" and self.target_position:
-                self.move_towards_target(self.target_position, speed_factor=0.8)
-            elif self.state == "working":
-                self.simulate_work_activity()
-            # Break and idle states don't require specific actions
+            # Simulate movement
+            self.simulate_movement()
             
-            # Occasionally print status for debugging
-            if int(self.robot.getTime()) % 30 == 0 and self.robot.getTime() > 1:
-                status = self.get_worker_status()
-                print(f"Worker {self.worker_id}: {status['state']} at {status['position'][:2]}")
+            # Handle robot interactions
+            self.handle_robot_interaction()
+            
+            # Debug output every 5 seconds
+            if step_count % (5000 // self.timestep) == 0:
+                pos = self.get_current_position()
+                print(f"{self.worker_id}: State={self.current_state}, "
+                      f"Pos=[{pos[0]:.1f}, {pos[1]:.1f}], "
+                      f"Target=[{self.target_position[0]:.1f}, {self.target_position[1]:.1f}]")
 
 def main():
-    """Main function to run the human worker controller"""
+    """Main function to handle command line arguments and start controller"""
+    worker_id = "worker_1"  # Default
+    
     # Get worker ID from command line arguments
     if len(sys.argv) > 1:
         worker_id = sys.argv[1]
-    else:
-        worker_id = "worker1"  # Default
     
-    # Create and run worker
-    worker = HumanWorker(worker_id)
-    worker.run()
+    # Create and run controller
+    controller = HumanWorkerController(worker_id)
+    controller.run()
 
 if __name__ == "__main__":
     main() 
